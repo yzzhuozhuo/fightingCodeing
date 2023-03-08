@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Vue双向数据绑定</title>
+</head>
+
+<body>
+  <div id="app">
+    用户名：<input type="text" v-model="name">
+    密码：<input type="text" v-model="passWord">
+    {{name}} {{passWord}}
+    <div>
+      <div>{{name}}</div>
+    </div>
+  </div>
+
+  <script>
+
+    function Vue(option) {
+      this.data = option.data;
+      this.id = option.el;
+      observe(this.data);
+      var dom = nodeToFragment(document.getElementById(this.id), this);
+      document.getElementById(this.id).appendChild(dom);
+    }
+
+    function nodeToFragment(node, vm) {
+      // 创建一个文档碎片
+      var fragment = document.createDocumentFragment();
+      var child;
+      // 获取到node中的第一个节点
+      while (child = node.firstChild) {
+        // appendChild会将传入的节点移除，因此此循环会将node中的节点一个个移除，移动到fragment文档碎片中。
+        fragment.appendChild(child);
+      }
+      // console.dir(fragment);
+      loopNode(fragment.childNodes, vm);
+      return fragment;
+    }
+
+    function loopNode(nodes, vm) {
+      //此处传入的nodes是一个类数组，将其转化为数组
+      Array.from(nodes).forEach((node) => {
+        compile(node, vm);
+        // 如果node还有子节点，则继续解析
+        if (node.childNodes.length > 0) {
+          loopNode(node.childNodes, vm);
+        }
+      })
+    }
+
+    function compile(node, vm) {
+      // 如果是元素节点
+      if (node.nodeType === 1) {
+        // 获得元素节点上所有的属性，以键值对的方式存储在attr中，attr属于类数组
+        var attr = node.attributes;
+        Array.from(attr).forEach(element => {
+          if (element.nodeName == "v-model") {
+            var name = element.nodeValue;
+            // 给带有v-model指令的元素绑定input时间
+            node.addEventListener('input', function (e) {
+              vm.data[name] = e.target.value;
+            })
+            // 初始化带有v-model指令的元素的值
+            node.value = vm.data[name];
+            new Watcher(vm, node, name);
+          }
+        });
+      }
+      // 正则匹配到文本中有{{}}的文本
+      var reg = /\{\{([^}]*)\}\}/g;
+      var textContent = node.textContent;
+      // 如果是文本节点且文本中带有{{}}的节点
+      if (node.nodeType === 3 && reg.test(textContent)) {
+        // 将文本内容存放在当前节点的自定义属性上
+        node.my = textContent;
+        // 此处node.textContent 和 node.my的文本一样，如果上一步不将文本存储到自定义属性中，那么下次将无法匹配到{{}}。
+        node.textContent = node.my.replace(reg, function () {
+          var attr = arguments[0].slice(2, arguments[0].length - 2);
+          new Watcher(vm, node, attr);
+          return vm.data[attr];
+        })
+      }
+    }
+
+    function observe(data) {
+      if (typeof data != 'object' || !data) {
+        return
+      }
+
+      Object.keys(data).forEach((key) => {
+        defineReactive(data, key, data[key]);
+      })
+    }
+
+    function defineReactive(data, key, val) {
+      var dep = new Dep();
+      observe(val);
+      Object.defineProperty(data, key, {
+        get: function () {
+          Dep.target && dep.addSub(Dep.target);
+          return val;
+        },
+        set: function (newVal) {
+          if (newVal !== val) {
+            val = newVal;
+            dep.notify();
+          } else {
+            return;
+          }
+        }
+      })
+    }
+
+    function Dep() {
+      this.subs = [];
+    }
+
+    Dep.prototype.addSub = function (sub) {
+      this.subs.push(sub);
+    }
+
+    Dep.prototype.notify = function () {
+      this.subs.forEach((sub) => {
+        sub.update();
+      })
+    }
+
+    function Watcher(vm, node, name) {
+      this.vm = vm;
+      this.node = node;
+      this.name = name;
+      this.value = this.get();
+    }
+
+    Watcher.prototype.get = function () {
+      Dep.target = this;
+      var value = this.vm.data[this.name];
+      Dep.target = null;
+      return value;
+    }
+
+    Watcher.prototype.update = function () {
+      if (this.node.nodeType === 1) {
+        this.node.nodeValue = this.get();
+      } else {
+        this.node.textContent = this.node.my.replace(/\{\{([^}]*)\}\}/g, function () {
+          var attr = arguments[0].slice(2, arguments[0].length - 2);
+          return this.vm.data[attr];
+        })
+      }
+    }
+
+    var vm = new Vue({
+      el: "app",
+      data: {
+        name: "lishibo",
+        passWord: "123456",
+        obj: {
+          obj1: 'obj1'
+        },
+        arr: ['arr1', 'arr2']
+      }
+    })
+  </script>
+</body>
+</html>
