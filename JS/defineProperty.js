@@ -19,7 +19,6 @@ methodsToPatch.forEach((method) => {
 });
 
 function observer(obj) {
-  console.log('=====');
   if (typeof obj !== "object" || obj == null) {
     return;
   }
